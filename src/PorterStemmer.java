@@ -492,8 +492,7 @@ class PorterStemmer
     return dirty;
   }
 
-  public String[] getStemmedTextAndSuffix(String str){
-	  PorterStemmer s = new PorterStemmer();
+  public String[] getStemmedTextAndSuffix(String str, PorterStemmer s){
 	  String stemmedtext = s.stem(str);
 	  String suffix = StringUtils.difference(stemmedtext, str);
 	  String[] returnstr = {stemmedtext, suffix};
@@ -505,9 +504,9 @@ class PorterStemmer
    */
   public static void main(String[] args) {
     PorterStemmer s = new PorterStemmer();
-    String stemmedtext = s.stem("wallows");
+    String stemmedtext = s.stem("ways");
     System.out.println(stemmedtext);
-    System.out.println(StringUtils.difference(stemmedtext, "wallows"));
+    System.out.println(StringUtils.difference(stemmedtext, "ways"));
     
 //    for (int i = 0; i < args.length; i++) {
 //      try {
