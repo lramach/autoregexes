@@ -16,6 +16,7 @@ public class Vocabulary{
 				}
 			}
 		}
+		System.out.println("Returning from tokenization");
 		return tokensList;
 	}
 }

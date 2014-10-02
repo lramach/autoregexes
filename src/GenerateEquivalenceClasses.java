@@ -98,12 +98,11 @@ class GenerateEquivalenceClasses{
 		}
 		if(!segment.isEmpty() || segment != null){
 			StringTokenizer st = new StringTokenizer(segment);
-	//		String[] tokensClasses = new String[st.countTokens()];
-			//String tokensClasses = "";
 			ArrayList<ArrayList> tokenClasses = new ArrayList<ArrayList>();
 			WordnetBasedSimilarity wn = new WordnetBasedSimilarity();
 			int sizes = 0;
 			int numTokens = st.countTokens();
+			//Iterating over the rubric segment's tokens
 			while(st.hasMoreTokens()){//'token' is the unigram from the sentence segment in the rubirc text
 				String token = st.nextToken();
 				String temptoken = token;
@@ -115,12 +114,7 @@ class GenerateEquivalenceClasses{
 					temptoken = stemText[0]+"("+stemText[1]+")?";
 				else
 					temptoken = stemText[0];
-//				for(int j = 0; j < Stopwords.suffixes.length; j++){
-//					if(temptoken.endsWith(Stopwords.suffixes[j])){
-//						temptoken = temptoken.replace(Stopwords.suffixes[j], "("+Stopwords.suffixes[j]+")?");
-//						break;
-//					}
-//				}
+
 				tokenClass.add(temptoken);//adding the stemmed token
 				//compare token with words in the top scoring responses
 				StringTokenizer sttop;
@@ -162,15 +156,14 @@ class GenerateEquivalenceClasses{
 					tokenClasses.add(tokenClass);
 					sizes += tokenClass.size();
 				}
-			}
-			//double averageSizeOfTokenClassesdouble averageSizeOfTokenClasses = (double)sizes/(double)numTokens;
-			double averageSizeOfTokenClasses = 1;
-			System.out.println("averageSizeOfTokenClasses:: "+averageSizeOfTokenClasses+" sizes:: "+sizes+" numTokens:: "+numTokens);
+			} //end of iterating over the rubric tokens
 			
-			//sort the token classes based on the number of elements in each array list, select the top few
-			MergeSorting msort = new MergeSorting();
-			tokenClasses = msort.sorting(tokenClasses, 0);
-			System.out.println("tokenClasses: "+tokenClasses);
+			
+			//sort the token classes based on the *frequency of stemmed tokens* and not the number of elements in each array list, 
+			//(hence code is commented)
+			//MergeSorting msort = new MergeSorting();
+			//tokenClasses = msort.sorting(tokenClasses, 0);
+			//System.out.println("tokenClasses: "+tokenClasses);
 			
 			String concatListOfTokens = "";
 			//select the top token-classes
@@ -178,9 +171,9 @@ class GenerateEquivalenceClasses{
 			int grams = 0;
 			for(ArrayList tokClass : tokenClasses){
 				if(!finalListOfTokenClasses.contains(tokClass)){
-					if(tokClass.size() > 1){
+					//if(tokClass.size() > 1){
 						finalListOfTokenClasses.add(tokClass);
-					}
+					//}
 					if(grams < 5){
 						//if(tokClass.size() > averageSizeOfTokenClasses){ //if the size of the token classes is greater than the average size 
 							concatListOfTokens = concatListOfTokens + " @@ "+tokClass; //add the tokens to the final list

@@ -17,6 +17,7 @@ class EliminateStopWords{
 				String seg = segments[i].toLowerCase();
 				seg = seg.replaceAll(";", "");
 				seg = seg.replaceAll(",", "");
+				seg = seg.replaceAll(":", "");
 				seg = seg.replaceAll("\"", "");
 				seg = seg.replaceAll("\\.", " ");
 				seg = seg.replaceAll("\\/", " ");
