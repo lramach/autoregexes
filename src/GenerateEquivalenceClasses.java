@@ -5,11 +5,13 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.StringTokenizer;
 
+import edu.stanford.nlp.tagger.maxent.MaxentTagger;
+
 class GenerateEquivalenceClasses{
 	double threshold = 2.0;
 	public ArrayList identifyClassesOfWords(ArrayList<String> rubricTokens, ArrayList<String> topScoringTokens, 
-		ArrayList finalListOfTokenClasses) throws ClassNotFoundException, IOException{
-		
+		ArrayList finalListOfTokenClasses, MaxentTagger posTagger) throws ClassNotFoundException, IOException{
+		GenerateEquivalenceClasses genClass = new GenerateEquivalenceClasses();
 		ArrayList<ArrayList> tokenClasses = new ArrayList<ArrayList>();
 		WordnetBasedSimilarity wn = new WordnetBasedSimilarity();
 		int sizes = 0;
@@ -17,7 +19,7 @@ class GenerateEquivalenceClasses{
 			//'token' is the unigram from the sentence segment in the rubirc text
 			String token = rubricTokens.get(i);
 			String temptoken = token;
-			ArrayList tokenClass = new ArrayList<String>();//initializing the class
+			
 			//replacing common suffixes with (aaa)? and making it optional
 			PorterStemmer s = new PorterStemmer();
 			String[] stemText = s.getStemmedTextAndSuffix(temptoken, s);
@@ -25,56 +27,26 @@ class GenerateEquivalenceClasses{
 				temptoken = stemText[0]+"("+stemText[1]+")?";
 			else
 				temptoken = stemText[0];
-			tokenClass.add(temptoken);//adding the stemmed token
-					
-			//compare token with words in the top scoring responses
-			for(int j = 0; j < topScoringTokens.size(); j++){
-				//compare the rubric token with each top score token
-				String toptoken = topScoringTokens.get(j);//'toptoken' is the token from the top-scoring response
-				//compare rubric token and the top scoring tokens.
-				double match = wn.compareStrings(token, toptoken);
-				//if the tokens' match is above the threshold
-				if(match >= threshold && match != WordnetBasedSimilarity.EXACT){ //add the matched words to the class, don't have to add EXACT matches
-					//stemming toptoken before it is added to the list
-					stemText = s.getStemmedTextAndSuffix(toptoken, s);
-					if(stemText[1] != "")
-						toptoken = stemText[0]+"("+stemText[1]+")?";
-					else
-						toptoken = stemText[0];
-						
-					if(!tokenClass.contains(toptoken))
-						tokenClass.add(toptoken.trim());
-				}
-					
-				System.out.println("Eq. classes for token:"+token);
-				System.out.println(tokenClass.toString());
-				
-				//sorting the arraylist before adding it to make it easy to compare unordered lists
-				Collections.sort(tokenClass);
-				if(!tokenClasses.contains(tokenClass)){
-					System.out.println("Adding: "+tokenClass);
-					tokenClasses.add(tokenClass);
-					sizes += tokenClass.size();
-				}
+			//get the class of words for this token
+			ArrayList classOfWords = genClass.getClassOfWords(temptoken, topScoringTokens, s, posTagger);
+			//sorting the arraylist before adding it to make it easy to compare unordered lists
+			Collections.sort(classOfWords);
+			if(!tokenClasses.contains(classOfWords)){
+				System.out.println("Adding: "+classOfWords);
+				tokenClasses.add(classOfWords);
 			}
 		}
-			
-		//sort the token classes based on the number of elements in each array list, select the top few
-		MergeSorting msort = new MergeSorting();
-		tokenClasses = msort.sorting(tokenClasses, 0);
-		System.out.println("tokenClasses: "+tokenClasses);
-				
+		
 		String concatListOfTokens = "";
 		//select the top token-classes
 		//restrict them to 5-grams
 		int grams = 0;
 		for(ArrayList tokClass : tokenClasses){
 			if(!finalListOfTokenClasses.contains(tokClass)){
-				if(tokClass.size() > 1){
-					if(!finalListOfTokenClasses.contains(tokClass))
-						finalListOfTokenClasses.add(tokClass);
+				if(tokClass.size() > 1){ //adding each token class individually
+					finalListOfTokenClasses.add(tokClass);
 				}
-				if(grams < 5){
+				if(grams < 5){ //building the longer array of token classes, more specific regex
 					concatListOfTokens = concatListOfTokens + " @@ "+tokClass; //add the tokens to the final list
 					grams++;
 				} else if(grams == 5){
@@ -82,7 +54,7 @@ class GenerateEquivalenceClasses{
 						System.out.println("concatListOfTokens: "+concatListOfTokens);
 						finalListOfTokenClasses.add(concatListOfTokens.trim());
 					}
-					//reset
+					//reset the grams so that the rest of the token classes in this rubric segment can be concatenated together
 					grams = 0;
 					concatListOfTokens = "";
 				}
@@ -91,105 +63,86 @@ class GenerateEquivalenceClasses{
 		return finalListOfTokenClasses;
 	}
 	
-	//finalListOfTokenClasses contains the final list of tokens
-	public ArrayList identifyClassesOfWords(String segment, String[] topscorers, PrintWriter csvWriter, String filename, ArrayList finalListOfTokenClasses) throws ClassNotFoundException, IOException{
-		if(segment == null){
-			return finalListOfTokenClasses; // return old list without adding any new token lists
-		}
-		if(!segment.isEmpty() || segment != null){
-			StringTokenizer st = new StringTokenizer(segment);
-			ArrayList<ArrayList> tokenClasses = new ArrayList<ArrayList>();
+	public String identifyClassesOfPhrases(String rubricPhrase, ArrayList<String> topScoringTokens, MaxentTagger posTagger) throws ClassNotFoundException, IOException{
+			GenerateEquivalenceClasses genClass = new GenerateEquivalenceClasses();
 			WordnetBasedSimilarity wn = new WordnetBasedSimilarity();
-			int sizes = 0;
-			int numTokens = st.countTokens();
-			//Iterating over the rubric segment's tokens
-			while(st.hasMoreTokens()){//'token' is the unigram from the sentence segment in the rubirc text
+			String outputPhrase = "";
+			StringTokenizer st = new StringTokenizer(rubricPhrase);
+			while(st.hasMoreTokens()){
+				//'token' is the unigram from the sentence segment in the rubirc text
 				String token = st.nextToken();
-				String temptoken = token;
-				ArrayList tokenClass = new ArrayList<String>();//initializing the class
-				//replacing common suffixes with (aaa)? and making it optional
-				PorterStemmer s = new PorterStemmer();
-				String[] stemText = s.getStemmedTextAndSuffix(temptoken, s);
+				if(!token.contains("(\\\\w{0-4}\\\\s)")){ //if the token is not a frequent word
+					String temptoken = token;
+					//replacing common suffixes with (aaa)? and making it optional
+					PorterStemmer s = new PorterStemmer();
+					String[] stemText = s.getStemmedTextAndSuffix(temptoken, s);
+					if(stemText[1] != "")
+						temptoken = stemText[0]+"("+stemText[1]+")?";
+					else
+						temptoken = stemText[0];
+					//get the class of words for this token
+					ArrayList tokenClass = genClass.getClassOfWords(temptoken, topScoringTokens, s, posTagger);
+					outputPhrase = outputPhrase +" "+tokenClass;
+				}else{
+					outputPhrase = outputPhrase +" "+token;
+				}
+			}//iterating over each of the tokens in the rubric phrase
+			System.out.println("outphrase: "+outputPhrase);
+			return outputPhrase.trim();
+		}
+	
+	
+	public ArrayList getClassOfWords(String token, ArrayList<String> topscorers, PorterStemmer s, MaxentTagger posTagger) throws ClassNotFoundException, IOException{
+		//compare token with words in the top scoring responses
+		StringTokenizer sttop;
+		ArrayList tokenClass = new ArrayList<String>();//initializing the class
+		//adding root token
+		tokenClass.add(token);
+		WordnetBasedSimilarity wn = new WordnetBasedSimilarity();
+		String[] tokenSyns = null;
+		//TO DO LATER!! call wordnet code for rubric token's values, so this does not have to be recomputed for every topscorer token
+		for(int i = 0; i< topscorers.size(); i++){
+			if(topscorers.get(i) != null){
+				sttop = new StringTokenizer(topscorers.get(i));
+				//compare the rubric token with each top score token
+				while(sttop.hasMoreTokens()){
+					String toptoken = sttop.nextToken();//'toptoken' is the token from the top-scoring response
+					//compare rubric token and the top scoring tokens.
+					WordNetMatch wordnetMatch = wn.compareStrings(token, toptoken, posTagger);
+					double match = wordnetMatch.matchValue;
+					tokenSyns = wordnetMatch.synonyms;
+					//if the tokens' match is above the threshold
+					if(match >= threshold && match != WordnetBasedSimilarity.EXACT){ //add the matched words to the class, don't have to add EXACT matches
+						//stemming toptoken before it is added to the list
+						String[] stemText = s.getStemmedTextAndSuffix(toptoken, s);
+						if(stemText[1] != "")
+							toptoken = stemText[0]+"("+stemText[1]+")?";
+						else
+							toptoken = stemText[0];
+						if(!tokenClass.contains(toptoken))
+							tokenClass.add(toptoken.trim());
+					}
+				}
+			}
+		}
+		System.out.println("Synonyms of token: "+token);
+		if(tokenSyns != null){
+			for(int i = 0; i < tokenSyns.length; i++){
+				System.out.println(tokenSyns[i]);
+				//stemming toptoken before it is added to the list
+				String[] stemText = s.getStemmedTextAndSuffix(tokenSyns[i], s);
+				String toptoken;
 				if(stemText[1] != "")
-					temptoken = stemText[0]+"("+stemText[1]+")?";
+					toptoken = stemText[0]+"("+stemText[1]+")?";
 				else
-					temptoken = stemText[0];
-
-				tokenClass.add(temptoken);//adding the stemmed token
-				//compare token with words in the top scoring responses
-				StringTokenizer sttop;
-				for(int i = 0; i< topscorers.length; i++){
-					if(topscorers[i] != null){
-						sttop = new StringTokenizer(topscorers[i]);
-						//compare the rubric token with each top score token
-						while(sttop.hasMoreTokens()){
-							String toptoken = sttop.nextToken();//'toptoken' is the token from the top-scoring response
-							//compare rubric token and the top scoring tokens.
-							double match = wn.compareStrings(token, toptoken);
-							//if the tokens' match is above the threshold
-							if(match >= threshold && match != WordnetBasedSimilarity.EXACT){ //add the matched words to the class, don't have to add EXACT matches
-								//stemming toptoken before it is added to the list
-								stemText = s.getStemmedTextAndSuffix(toptoken, s);
-								if(stemText[1] != "")
-									toptoken = stemText[0]+"("+stemText[1]+")?";
-								else
-									toptoken = stemText[0];
-//								for(int j = 0; j < Stopwords.suffixes.length; j++){
-//									//replacing common suffixes with (aaa)? and making it optional
-//									if(toptoken.endsWith(Stopwords.suffixes[j])){
-//										toptoken = toptoken.replace(Stopwords.suffixes[j], "("+Stopwords.suffixes[j]+")?");
-//										break;
-//									}
-//								}
-								if(!tokenClass.contains(toptoken))
-									tokenClass.add(toptoken.trim());
-							}
-						}
-					}
-				}
-				System.out.println("Eq. classes for token:"+token);
-				System.out.println(tokenClass.toString());
-				//sorting the arraylist before adding it to make it easy to compare unordered lists
-				Collections.sort(tokenClass);
-				if(!tokenClasses.contains(tokenClass)){
-					System.out.println("Adding: "+tokenClass);
-					tokenClasses.add(tokenClass);
-					sizes += tokenClass.size();
-				}
-			} //end of iterating over the rubric tokens
-			
-			
-			//sort the token classes based on the *frequency of stemmed tokens* and not the number of elements in each array list, 
-			//(hence code is commented)
-			//MergeSorting msort = new MergeSorting();
-			//tokenClasses = msort.sorting(tokenClasses, 0);
-			//System.out.println("tokenClasses: "+tokenClasses);
-			
-			String concatListOfTokens = "";
-			//select the top token-classes
-			//restrict them to 5-grams
-			int grams = 0;
-			for(ArrayList tokClass : tokenClasses){
-				if(!finalListOfTokenClasses.contains(tokClass)){
-					//if(tokClass.size() > 1){
-						finalListOfTokenClasses.add(tokClass);
-					//}
-					if(grams < 5){
-						//if(tokClass.size() > averageSizeOfTokenClasses){ //if the size of the token classes is greater than the average size 
-							concatListOfTokens = concatListOfTokens + " @@ "+tokClass; //add the tokens to the final list
-						//}
-						grams++;
-					}
-				}
+					toptoken = stemText[0];
+				if(!tokenClass.contains(toptoken))
+					tokenClass.add(toptoken);
 			}
-			System.out.println("concatListOfTokens: "+concatListOfTokens);
-			if(!finalListOfTokenClasses.contains(concatListOfTokens.trim()) && grams > 1){
-				finalListOfTokenClasses.add(concatListOfTokens.trim());
-			}
-			return finalListOfTokenClasses;
 		}
-		else{
-			return finalListOfTokenClasses;
-		}
+		System.out.println("Eq. classes for token:"+token);
+		System.out.println(tokenClass.toString());
+		return tokenClass;
 	}
+		
 }

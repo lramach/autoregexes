@@ -4,6 +4,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.StringTokenizer;
 
+import edu.stanford.nlp.tagger.maxent.MaxentTagger;
 import processing.core.*;
 import net.didion.jwnl.JWNL;
 import net.didion.jwnl.JWNLException;
@@ -34,28 +35,6 @@ public class WordnetBasedSimilarity{
 		
 		public WordnetBasedSimilarity(){
 	        rwordnet = new RiWordnet();//, "/Users/lakshmi/Documents/Computer - workspaces et al/Add-ons/WordNet-3.0/dict/"
-		}
-		
-		public String determinePOS(String str_pos){
-			String pos = "";
-			//System.out.println("Tagged word::"+str_pos);
-			//str_pos = str_pos.substring(str_pos.indexOf("/")+1, str_pos.indexOf("/")+3).trim();
-			if(str_pos.contains("CD") || str_pos.contains("NN") || str_pos.contains("PR") || str_pos.contains("IN") || str_pos.contains("EX") || str_pos.contains("WP")){
-				pos = "n";
-			}
-			else if(str_pos.contains("JJ")){
-				pos = "a";
-			}
-			else if(str_pos.contains("TO") || str_pos.contains("VB") || str_pos.contains("MD")){
-				pos = "v";
-			}
-			else if(str_pos.contains("RB")){
-				pos = "r";
-			}
-			else{
-				pos = "n";
-			}
-			return pos;
 		}
 		
 		/*
@@ -92,11 +71,31 @@ public class WordnetBasedSimilarity{
 				return false;	
 		}
 		
+		public String determinePOS(String str_pos){
+			String pos = "";
+			if(str_pos.contains("CD") || str_pos.contains("NN") || str_pos.contains("PR") || str_pos.contains("IN") || str_pos.contains("EX") || str_pos.contains("WP")){
+				pos = "n";
+			}
+			else if(str_pos.contains("JJ")){
+				pos = "a";
+			}
+			else if(str_pos.contains("TO") || str_pos.contains("VB") || str_pos.contains("MD")){
+				pos = "v";
+			}
+			else if(str_pos.contains("RB")){
+				pos = "r";
+			}
+			else{
+				pos = "n";
+			}
+			return pos;
+		}
+		
 		/* Compares node's strings and depending on if they were synonyms, hyponyms or hypernyms the 
 		 * corresponding integer value is returned
 		 * s1 is the submission and s2 is the review
 		 * Functions are of the form "function(review, submission/past review)" */
-		public double compareStrings(String word1, String word2) throws ClassNotFoundException, StackOverflowError
+		public WordNetMatch compareStrings(String word1, String word2, MaxentTagger posTagger) throws ClassNotFoundException, StackOverflowError
 		{	
 			String review = word1;
 			String submission = word2;
@@ -112,56 +111,56 @@ public class WordnetBasedSimilarity{
 			
 			String reviewPOS = "";
 			String submPOS ="";
+			String revToken = stokRev.nextToken().toLowerCase();
+			if(reviewPOS == "")//do not reset POS for every new token, it changes the POS of the vertex e.g. like has diff POS for vertices "like"(n) and "would like"(v)
+				reviewPOS = determinePOS(posTagger.tagString(word1));
+			if(revToken.equals("n't")){
+				revToken = "not";
+			}
+			
+			//Initializing the String variables.
+			String[] revStems = null;//the stem form of the review token
+			String[] revSyn = null;//synonyms of the review token (one of the strings in the phrase)
+			String[] revNom = null;//nominalized forms 
+			String[] revHyponyms = null;//hyponyms (more specific -> submission
+			String[] revHypernyms = null;//hypernyms (more specific -> submission
+			String[] revMer = null;//meronyms of the review (more specific parts of something bigger ->submission)
+			String[] revHol = null; //holonyms are the opposit of meronyms ("arm" is a meronym of "body" and "body" is a holonym of "arm")
+			String[] revGloss = null;//glosses or definitions of the review token
+			String[] revAnt = null;
+			String[] revSynset = null;
+			String[] revDerivedTerms = null;
+			
+			try{//some "get" functions return a null and this try-catch block catches those "NullPointerExceptions"
+				revSynset = rwordnet.getSynset(revToken.toLowerCase(), reviewPOS);
+				revStems = rwordnet.getStems(revToken.toLowerCase(), reviewPOS);				
+				revSyn = rwordnet.getSynonyms(revToken.toLowerCase(), reviewPOS);
+				revNom = rwordnet.getAllNominalizations(revToken.toLowerCase(), reviewPOS);
+				revHyponyms = rwordnet.getAllHyponyms(revToken.toLowerCase(), reviewPOS);
+				revHypernyms = rwordnet.getAllHypernyms(revToken.toLowerCase(), reviewPOS);
+				revMer = rwordnet.getAllMeronyms(revToken.toLowerCase(), reviewPOS);
+				revHol = rwordnet.getAllHolonyms(revToken.toLowerCase(), reviewPOS);
+				revAnt = rwordnet.getAllAntonyms(revToken.toLowerCase(), reviewPOS);
+				revGloss = rwordnet.getAllGlosses(revToken.toLowerCase(), reviewPOS);
+				revDerivedTerms = rwordnet.getAllDerivedTerms(revToken.toLowerCase(), reviewPOS);
+			}
+			catch(NullPointerException e){
+//				e.printStackTrace();
+				//System.out.println("Null object returned.");
+			}
+			catch(StackOverflowError e){
+//				e.printStackTrace();
+			}
 			
 			//checking for exact match between the complete vertex name
 			if(word1.toLowerCase().equals(word2.toLowerCase())){
 				match = match + EXACT;
-				return match;
+				return new WordNetMatch((double)match, revSyn);
 			}
 			
 			//iterating through every review token in the vertex phrase
 //			while(stokRev.hasMoreTokens()){//traversing review tokens
 				//fetching the set of review and submission tokens
-				String revToken = stokRev.nextToken().toLowerCase();
-				if(reviewPOS == "")//do not reset POS for every new token, it changes the POS of the vertex e.g. like has diff POS for vertices "like"(n) and "would like"(v)
-					reviewPOS = determinePOS(word1);
-				if(revToken.equals("n't")){
-					revToken = "not";
-				}
-				
-				//Initializing the String variables.
-				String[] revStems = null;//the stem form of the review token
-				String[] revSyn = null;//synonyms of the review token (one of the strings in the phrase)
-				String[] revNom = null;//nominalized forms 
-				String[] revHyponyms = null;//hyponyms (more specific -> submission
-				String[] revHypernyms = null;//hypernyms (more specific -> submission
-				String[] revMer = null;//meronyms of the review (more specific parts of something bigger ->submission)
-				String[] revHol = null; //holonyms are the opposit of meronyms ("arm" is a meronym of "body" and "body" is a holonym of "arm")
-				String[] revGloss = null;//glosses or definitions of the review token
-				String[] revAnt = null;
-				String[] revSynset = null;
-				String[] revDerivedTerms = null;
-				
-				try{//some "get" functions return a null and this try-catch block catches those "NullPointerExceptions"
-					revSynset = rwordnet.getSynset(revToken.toLowerCase(), reviewPOS);
-					revStems = rwordnet.getStems(revToken.toLowerCase(), reviewPOS);				
-					revSyn = rwordnet.getSynonyms(revToken.toLowerCase(), reviewPOS);
-					revNom = rwordnet.getAllNominalizations(revToken.toLowerCase(), reviewPOS);
-					revHyponyms = rwordnet.getAllHyponyms(revToken.toLowerCase(), reviewPOS);
-					revHypernyms = rwordnet.getAllHypernyms(revToken.toLowerCase(), reviewPOS);
-					revMer = rwordnet.getAllMeronyms(revToken.toLowerCase(), reviewPOS);
-					revHol = rwordnet.getAllHolonyms(revToken.toLowerCase(), reviewPOS);
-					revAnt = rwordnet.getAllAntonyms(revToken.toLowerCase(), reviewPOS);
-					revGloss = rwordnet.getAllGlosses(revToken.toLowerCase(), reviewPOS);
-					revDerivedTerms = rwordnet.getAllDerivedTerms(revToken.toLowerCase(), reviewPOS);
-				}
-				catch(NullPointerException e){
-//					e.printStackTrace();
-					//System.out.println("Null object returned.");
-				}
-				catch(StackOverflowError e){
-//					e.printStackTrace();
-				}
 				
 				if(revStems != null){
 					listRevArr = Arrays.asList(revStems);
@@ -173,7 +172,7 @@ public class WordnetBasedSimilarity{
 //				{
 					String subToken = stokSub.nextToken().toLowerCase();
 					if(submPOS == "")
-						submPOS = determinePOS(word2);
+						submPOS = determinePOS(posTagger.tagString(word2));
 					if(subToken.equals("n't")){
 						subToken = "not";
 						//System.out.println("replacing n't");
@@ -228,35 +227,7 @@ public class WordnetBasedSimilarity{
 					}		
 					
 					String[] temp = new String[10];
-					//------------
-//					//Checking for Antonyms
-//					if(revAnt != null){
-//						if(revAnt.length > 10){
-//							System.arraycopy(revAnt, 0, temp, 0, 10);
-//							listRevArr = Arrays.asList(temp);
-//						}
-//						else
-//							listRevArr = Arrays.asList(revAnt);
-//						if(listRevArr!=null && ((subStems != null && contains(listRevArr.toString(), subStems[0].toLowerCase())) ||
-//								contains(listRevArr.toString(), subToken.toLowerCase()))){
-//									match = match + ANTONYM;
-//							 count++;
-//						}
-//					}
-//					//checking if review token appears in the submission's definition
-//					if(subAnt != null){
-//						if(subAnt.length > 10){
-//							System.arraycopy(subAnt, 0, temp, 0, 10);
-//							listSubArr = Arrays.asList(temp);
-//						}
-//						else
-//							listSubArr = Arrays.asList(subAnt);
-//						if(listSubArr!=null && ((revStems != null && contains(listSubArr.toString(), revStems[0].toLowerCase())) ||
-//								contains(listSubArr.toString(), revToken.toLowerCase()))){
-//									match = match + ANTONYM;
-//							count++;
-//						}
-//					}
+					
 					
 					//------------
 					//*****For Synonyms
@@ -600,12 +571,9 @@ public class WordnetBasedSimilarity{
 //			}//end of while loop for review tokens
 			
 			if(count > 0){
-//				System.out.println("Match: "+match +" Count:: "+count);
-				//System.out.println("@@@@@@@@@ Returning Value: "+((double)match/(double)count));
-				return (double)Math.round((double)match/(double)count);//an average of the matches found
+				return new WordNetMatch((double)Math.round((double)match/(double)count), revSyn);//an average of the matches found
 			}
-			//System.out.println("@@@@@@@@@ Returning NOMATCH");
-			return (double)NOMATCH;	
+			return new WordNetMatch((double)NOMATCH, revSyn);	
 		}//end of method
 
 		/* calculates the number of words in common between the two strings

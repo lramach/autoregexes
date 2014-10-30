@@ -8,5 +8,7 @@
 	<classpathentry kind="lib" path="/Users/lakshmiramachandran/Documents/Add-ons/core1.0.jar"/>
 	<classpathentry kind="lib" path="/Users/lakshmiramachandran/Documents/Add-ons/lucene-4.10.0/analysis/common/lucene-analyzers-common-4.10.0.jar"/>
 	<classpathentry kind="lib" path="/Users/lakshmiramachandran/Documents/Add-ons/commons-lang-2.6/commons-lang-2.6.jar"/>
+	<classpathentry kind="lib" path="/Users/lakshmiramachandran/Documents/Add-ons/srl-20101031/lib/anna.jar"/>
+	<classpathentry kind="lib" path="/Users/lakshmiramachandran/Documents/Add-ons/stanford-postagger-2011-09-14/stanford-postagger-2011-09-14.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
