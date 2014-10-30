@@ -39,34 +39,16 @@ class Driver{
 		    System.exit(-1);
 		}
 		
-		//"50479", "50670-07", "50674-07", "50942", "51034", "80090", "80138-07", "80530-06", 
-//		String[] prompts = {"85056-08", "85076-08"};
-		//String[] prompts = {"Set1", "Set2", "Set3", "Set4", "Set5", "Set6", "Set7", "Set8", "Set9", "Set10" };
-		String[] prompts = {
-				"COSC120160", "COSC120170", "COSC120274", "COSC120275", "COSC130037", "COSC130066", 
-				"COSC130086", "COSC130088", "COSC130108", "COSC130196", "COSC130202", "COSC130242", "COSC130247", 
-				"COSC130267", "COSS120325", "COSS120329", "COSS120363", "COSS120382","COSS130095", "COSS130110"};
-//		String[] prompts = {"1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7", "2.1", "2.2", "2.3", "2.4", "2.5", "2.6", "2.7", 
-//				"3.1", "3.2", "3.3", "3.4", "3.5", "3.6", "3.7", "4.1", "4.2", "4.3", "4.4", "4.5", "5.1", "5.2", "5.3", "5.4", 
-//				"6.1", "6.2", "6.3", "6.4", "6.5", "6.6", "6.7", "7.1", "7.2", "7.3", "7.4", "7.5", "7.6", "7.7", "8.1", "8.2", 
-//				"8.3", "8.4", "8.6", "8.7", "9.1", "9.2", "9.3", "9.4", "9.6", "10.1", "10.2", "10.3", "10.4", "10.5", "10.6", 
-//				"10.7", "11.1", "11.2", "11.3", "11.4", "11.5", "11.6", "11.7", "11.8", "11.9", "11.10", "12.1", "12.2", "12.4", 
-//				"12.5", "12.6", "12.7", "12.8", "12.9", "12.10"};
-//		String[] prompts = {"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11","12"}; //assignments
-//		String[] prompts = {"COSC120274"};
+		String[] prompts = {"A", "B", "C"};
 		for(int k=0; k < prompts.length; k++){
 			Driver dr = new Driver();
 			//Step 1:
 			//get the rubric text as a set of sentence segments, and top-scoring responses
 			//rubricSegments have the top scoring essays for PARCC since there are no sample respones
-			String[] rubricSegments = dr.readFromFile("/Users/lakshmiramachandran/Documents/pearson-datasets/Colorado/Operational Data/autoregexes/"+prompts[k]+"-prompt-stimulus.csv", 1);
-//			String[] rubricSegments = dr.readFromFile("/Users/lakshmiramachandran/Documents/Kaggle/ASAP-SAS/regexes/"+prompts[k]+"-rubric.csv", 1);
+			String[] rubricSegments = dr.readFromFile(args[0], 1);
 			//topScoringResponses has top two scored essays
-			String[] topScoringResponses = dr.readFromFile("/Users/lakshmiramachandran/Documents/pearson-datasets/Colorado/Operational Data/Attempt01/traintestsets/"+prompts[k]+"-spell-topscorers.csv", 1);
-//			String[] topScoringResponses = dr.readFromFile("/Users/lakshmiramachandran/Documents/Kaggle/ASAP-SAS/regexes/"+prompts[k]+"-topscorers.csv", 1);
+			String[] topScoringResponses = dr.readFromFile(args[1], 1);
 			//if prompt-stimulus text is available
-			//String[] promptStimulusText = dr.readFromFile("/Users/lakshmiramachandran/Documents/pearson-datasets/Colorado/Operational Data/autoregexes/"+prompts[k]+"-prompt-stimulus.csv", 1);
-//			String[] promptStimulusText = dr.readFromFile("/Users/lakshmiramachandran/Documents/pearson-datasets/Maryland/"+prompts[k]+"/Set"+prompts[k]+"-prompt-stimulus.csv", 1);
 			
 			//Step 2:
 			//extract long phrases from the text (edges from the word-order graph generated)
@@ -101,7 +83,7 @@ class Driver{
 			
 			//step 6A:
 			//Identify equivalence classes for the tokens in the rubric text (using semantic relatedness metrics include spelling mistakes)
-			String writeToFile = "/Users/lakshmiramachandran/Documents/pearson-datasets/Colorado/Operational Data/Attempt01/traintestsets/regex-phrases-spell-"+prompts[k]+".csv";
+			String writeToFile = args[2];
 			PrintWriter csvWriter = new PrintWriter(new FileWriter(writeToFile));
 			GenerateEquivalenceClasses genEqClass = new GenerateEquivalenceClasses();
 			ArrayList finalListOfTokenClasses = new ArrayList();
@@ -158,16 +140,13 @@ class Driver{
 		int i = 0;
 		StringTokenizer st;
 		while((temp = reader.readLine()) != null){
-			//if(i > 0){ //skipping the header in the .csv file
-				if(flag == 0){
-					st = new StringTokenizer(temp, ",");
-					st.nextToken(); st.nextToken(); st.nextToken();
-					segments[i] = st.nextToken();
-				} else{
-					segments[i] = temp;
-				}
-				//System.out.println("i-1: "+(i-1)+" -- "+segments[i-1]);
-			//}
+			if(flag == 0){
+				st = new StringTokenizer(temp, ",");
+				st.nextToken(); st.nextToken(); st.nextToken();
+				segments[i] = st.nextToken();
+			} else{
+				segments[i] = temp;
+			}
 			i=i+1;
 		}
 		segments = Arrays.copyOf(segments, i);
